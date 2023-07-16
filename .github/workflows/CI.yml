@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - '#3-CI'
+      - main
   pull_request:
     branches:
-      - '#3-CI'
+      - main
 
 jobs:
   test:
