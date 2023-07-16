@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '#3-CI'
+  pull_request:
+    branches:
+      - '#3-CI'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13.2-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres || exit 1" --health-interval 10s --health-timeout 5s --health-retries 3
+
+      redis-queue:
+        image: redis:6.0.12-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
+
+      redis-cache:
+        image: redis:6.0.12-alpine
+        ports:
+          - 6380:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.0.4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt upgrade -y
+          gem install bundler
+          bundle install
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - name: Install Node.js dependencies
+        run: |
+          curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
+          sudo apt-get install -y nodejs
+          curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor | sudo tee /usr/share/keyrings/yarnkey.gpg >/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+          sudo apt-get update && sudo apt-get install -y yarn
+          npm install
+          yarn
+
+      - name: Run tests on rspec
+        run: |
+          bundle exec rspec
+      
+      - name: Run mailer tests
+        run: |
+          bundle exec rspec test/mailers/app_mailer_test.rb
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.0.4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt upgrade -y
+          gem install bundler
+          bundle install
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - name: Install Node.js dependencies
+        run: |
+          curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
+          sudo apt-get install -y nodejs
+          curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor | sudo tee /usr/share/keyrings/yarnkey.gpg >/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com/debian stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+          sudo apt-get update && sudo apt-get install -y yarn
+          npm install
+          yarn
+
+      - name: Run RuboCop
+        continue-on-error: true
+        run: |
+          bundle exec rubocop
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Docker compose
+        run: |
+            sudo apt-get update
+            sudo apt-get -y install
+
+      - name: Build Docker image
+        run: docker-compose build
